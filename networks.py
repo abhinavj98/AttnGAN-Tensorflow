@@ -132,6 +132,34 @@ class SpatialAttention(tf.keras.layers.Layer):
 
         return weighted_context, word_attn
 
+class FeatureAttention(tf.keras.layers.Layer):
+    def __init__(self, channels, name='SpatialAttention'):
+        super(FeatureAttention, self).__init__(name=name)
+        self.channels = channels # idf, x.shape[-1]
+
+        self.conv_f = Conv(self.channels, kernel=1, stride=1, use_bias=False, name='word_conv')
+        self.conv_g = Conv(self.channels, kernel=1, stride=1, use_bias=False, name='word_conv')
+        
+
+    def build(self, input_shape):
+        self.bs, self.h, self.w, _ = input_shape[0]
+        self.hw = self.h * self.w # length of query
+        
+    def call(self, inputs, training=True):
+        x = inputs 
+        x = tf.reshape(x, shape=[self.bs, self.hw, -1])
+
+        x_f = self.conv_f(x)
+        x_g = self.conv_g(x)
+
+        attn = tf.matmul(x_f, x_g, transpose_b=True) # [bs,D, D]
+        attn = tf.nn.softmax(attn)
+        
+        weighted_context = tf.matmul(x, attn, transpose_a=True, transpose_b=True)
+        weighted_context = tf.reshape(tf.transpose(weighted_context, perm=[0, 2, 1]), shape=[self.bs, self.h, self.w, -1])
+        
+        return weighted_context
+
 
 class UpBlock(tf.keras.layers.Layer):
     def __init__(self, channels, name='UpBlock'):
@@ -201,6 +229,7 @@ class Generator_128(tf.keras.layers.Layer):
         self.channels = channels # gf_dim
 
         self.spatial_attention = SpatialAttention(channels=self.channels)
+        self.feature_attention = FeatureAttention(channels=self.channels)
 
         self.model, self.generate_img_block = self.architecture()
 
@@ -225,10 +254,11 @@ class Generator_128(tf.keras.layers.Layer):
     def call(self, inputs, training=True):
         h_code, c_code, word_emb, mask = inputs
         c_code, _ = self.spatial_attention([h_code, c_code, word_emb, mask])
+        f_code = self.feature_attention([h_code])
 
-        h_c_code = tf.concat([h_code, c_code], axis=-1)
+        h_c_f_code = tf.concat([h_code, c_code, f_code], axis=-1)
 
-        h_code = self.model(h_c_code, training=training)
+        h_code = self.model(h_c_f_code, training=training)
         x = self.generate_img_block(h_code)
 
         return c_code, h_code, x
@@ -259,12 +289,15 @@ class Generator_256(tf.keras.layers.Layer):
     def call(self, inputs, training=True):
         h_code, c_code, word_emb, mask = inputs
         c_code, _ = self.spatial_attention([h_code, c_code, word_emb, mask])
+        f_code = self.feature_attention([h_code])
 
-        h_c_code = tf.concat([h_code, c_code], axis=-1)
+        h_c_f_code = tf.concat([h_code, c_code, f_code], axis=-1)
 
-        x = self.model(h_c_code, training=training)
+        h_code = self.model(h_c_f_code, training=training)
+        x = self.generate_img_block(h_code)
 
         return x
+       
 
 class Generator(tf.keras.Model):
     def __init__(self, channels, name='Generator'):
