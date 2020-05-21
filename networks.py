@@ -137,8 +137,8 @@ class FeatureAttention(tf.keras.layers.Layer):
         super(FeatureAttention, self).__init__(name=name)
         self.channels = channels # idf, x.shape[-1]
 
-        self.conv_f = Conv(self.channels, kernel=1, stride=1, use_bias=False, name='word_conv')
-        self.conv_g = Conv(self.channels, kernel=1, stride=1, use_bias=False, name='word_conv')
+        self.conv_f = Conv(self.channels, kernel=1, stride=1, use_bias=False, name='conv_f')
+        self.conv_g = Conv(self.channels, kernel=1, stride=1, use_bias=False, name='conv_g')
         
 
     def build(self, input_shape):
@@ -158,7 +158,7 @@ class FeatureAttention(tf.keras.layers.Layer):
         attn = tf.matmul(x_f, tf.transpose(x_g, perm = [0,2,1])) 
         attn = tf.nn.softmax(attn)
         
-        weighted_context = tf.matmul(x, attn, transpose_a=True, transpose_b=True)
+        weighted_context = tf.matmul(tf.squeeze(x), attn, transpose_a=True, transpose_b=True)
         weighted_context = tf.reshape(tf.transpose(weighted_context, perm=[0, 2, 1]), shape=[self.bs, self.h, self.w, -1])
         
         return weighted_context
@@ -240,7 +240,7 @@ class Generator_128(tf.keras.layers.Layer):
         model = []
 
         for i in range(2):
-            model += [ResBlock(self.channels * 2, name='resblock_' + str(i))]
+            model += [ResBlock(self.channels * 3, name='resblock_' + str(i))]
 
         model += [UpBlock(self.channels, name='up_block')]
 
@@ -272,13 +272,15 @@ class Generator_256(tf.keras.layers.Layer):
         self.channels = channels
 
         self.spatial_attention = SpatialAttention(channels=self.channels)
+        self.feature_attention = FeatureAttention(channels=self.channels)
+
         self.model = self.architecture()
 
     def architecture(self):
         model = []
 
         for i in range(2):
-            model += [ResBlock(self.channels * 2, name='res_block_' + str(i))]
+            model += [ResBlock(self.channels * 3, name='res_block_' + str(i))]
 
         model += [UpBlock(self.channels, name='up_block')]
 
