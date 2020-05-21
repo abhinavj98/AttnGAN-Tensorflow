@@ -142,17 +142,20 @@ class FeatureAttention(tf.keras.layers.Layer):
         
 
     def build(self, input_shape):
-        self.bs, self.h, self.w, _ = input_shape[0]
+        self.bs, self.h, self.w, self.r = input_shape[0]
         self.hw = self.h * self.w # length of query
         
     def call(self, inputs, training=True):
         x = inputs 
         x = tf.reshape(x, shape=[self.bs, self.hw, -1])
-
+        x = tf.expand(x, axis = -1)
+        
         x_f = self.conv_f(x)
         x_g = self.conv_g(x)
+        x_f = tf.reshape(x_f, shape = [self.bs, self.hw, -1])
+        x_g = tf.reshape(x_g, shape = [self.bs, self.hw, -1])
 
-        attn = tf.matmul(x_f, x_g, transpose_b=True) # [bs,D, D]
+        attn = tf.matmul(x_f, tf.transpose(x_g, perm = [0,2,1])) 
         attn = tf.nn.softmax(attn)
         
         weighted_context = tf.matmul(x, attn, transpose_a=True, transpose_b=True)
