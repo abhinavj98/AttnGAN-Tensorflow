@@ -148,7 +148,7 @@ class FeatureAttention(tf.keras.layers.Layer):
     def call(self, inputs, training=True):
         x = inputs 
         x = tf.reshape(x, shape=[self.bs, self.hw, -1])
-        x = tf.expand(x, axis = -1)
+        x = tf.expand_dims(x, axis = -1)
         
         x_f = self.conv_f(x)
         x_g = self.conv_g(x)
